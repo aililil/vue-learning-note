@@ -1,3 +1,4 @@
+// 堆数据类型的响应式实现
 import { isObject, toRawType, def } from '@vue/shared'
 import {
   mutableHandlers,
@@ -13,12 +14,13 @@ import {
 } from './collectionHandlers'
 import type { UnwrapRefSimple, Ref, RawSymbol } from './ref'
 
+// 响应式相关标记
 export const enum ReactiveFlags {
-  SKIP = '__v_skip',
-  IS_REACTIVE = '__v_isReactive',
-  IS_READONLY = '__v_isReadonly',
-  IS_SHALLOW = '__v_isShallow',
-  RAW = '__v_raw'
+  SKIP = '__v_skip',  // 用于跳过响应式代理
+  IS_REACTIVE = '__v_isReactive', // 表示当前对象已被响应式代理
+  IS_READONLY = '__v_isReadonly', // 表示当前对象是只读的响应式代理
+  IS_SHALLOW = '__v_isShallow', // 表示当前对象是浅响应式代理
+  RAW = '__v_raw' // 当前对象被markRaw标记为不可响应式代理的对象
 }
 
 export interface Target {
@@ -34,6 +36,7 @@ export const shallowReactiveMap = new WeakMap<Target, any>()
 export const readonlyMap = new WeakMap<Target, any>()
 export const shallowReadonlyMap = new WeakMap<Target, any>()
 
+// 堆类型分类
 const enum TargetType {
   INVALID = 0,
   COMMON = 1,
@@ -44,14 +47,14 @@ function targetTypeMap(rawType: string) {
   switch (rawType) {
     case 'Object':
     case 'Array':
-      return TargetType.COMMON
+      return TargetType.COMMON // 通用类型 支持响应式代理
     case 'Map':
     case 'Set':
     case 'WeakMap':
     case 'WeakSet':
-      return TargetType.COLLECTION
+      return TargetType.COLLECTION  // 集合类型 支持响应式代理
     default:
-      return TargetType.INVALID
+      return TargetType.INVALID // 其他类型 不支持响应式代理
   }
 }
 
@@ -245,6 +248,7 @@ export function shallowReadonly<T extends object>(target: T): Readonly<T> {
   )
 }
 
+// 生成响应式对象的工厂函数
 function createReactiveObject(
   target: Target,
   isReadonly: boolean,
@@ -252,6 +256,7 @@ function createReactiveObject(
   collectionHandlers: ProxyHandler<any>,
   proxyMap: WeakMap<Target, any>
 ) {
+  // 栈类型数据无法代理
   if (!isObject(target)) {
     if (__DEV__) {
       console.warn(`value cannot be made reactive: ${String(target)}`)
@@ -261,26 +266,29 @@ function createReactiveObject(
   // target is already a Proxy, return it.
   // exception: calling readonly() on a reactive object
   if (
-    target[ReactiveFlags.RAW] &&
-    !(isReadonly && target[ReactiveFlags.IS_REACTIVE])
+    target[ReactiveFlags.RAW] &&  // 被markRaw标记为不可代理
+    !(isReadonly && target[ReactiveFlags.IS_REACTIVE]) // readonly无法代理一个响应数据
   ) {
     return target
   }
-  // target already has corresponding Proxy
+  // target already has corresponding Proxy 已经存在相应的响应式代理
   const existingProxy = proxyMap.get(target)
   if (existingProxy) {
     return existingProxy
   }
-  // only specific value types can be observed.
+  // only specific value types can be observed. 只有特定数据类型能被代理
   const targetType = getTargetType(target)
   if (targetType === TargetType.INVALID) {
     return target
   }
+  // 创建相应的响应式代理
   const proxy = new Proxy(
     target,
     targetType === TargetType.COLLECTION ? collectionHandlers : baseHandlers
   )
+  // 存储代理对象和源对象的映射关系
   proxyMap.set(target, proxy)
+  // 返回代理
   return proxy
 }
 

@@ -1,3 +1,4 @@
+// 收集响应式的方法
 import { toRaw, ReactiveFlags, toReactive, toReadonly } from './reactive'
 import { track, trigger, ITERATE_KEY, MAP_KEY_ITERATE_KEY } from './effect'
 import { TrackOpTypes, TriggerOpTypes } from './operations'
@@ -329,8 +330,8 @@ const [
   readonlyInstrumentations,
   shallowInstrumentations,
   shallowReadonlyInstrumentations
-] = /* #__PURE__*/ createInstrumentations()
-
+] = /* #__PURE__*/ createInstrumentations() // __PURE__ 纯函数标记辅助tree shacking
+// 生成 proxy handler 中 get 方法的工厂函数
 function createInstrumentationGetter(isReadonly: boolean, shallow: boolean) {
   const instrumentations = shallow
     ? isReadonly

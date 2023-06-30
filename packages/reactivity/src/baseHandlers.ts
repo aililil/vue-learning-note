@@ -52,15 +52,16 @@ const shallowReadonlyGet = /*#__PURE__*/ createGetter(true, true)
 
 const arrayInstrumentations = /*#__PURE__*/ createArrayInstrumentations()
 
+// 数组上一些方法也应当是响应式的
 function createArrayInstrumentations() {
   const instrumentations: Record<string, Function> = {}
   // instrument identity-sensitive Array methods to account for possible reactive
   // values
   ;(['includes', 'indexOf', 'lastIndexOf'] as const).forEach(key => {
     instrumentations[key] = function (this: unknown[], ...args: unknown[]) {
-      const arr = toRaw(this) as any
+      const arr = toRaw(this) as any // 获取原数组对象
       for (let i = 0, l = this.length; i < l; i++) {
-        track(arr, TrackOpTypes.GET, i + '')
+        track(arr, TrackOpTypes.GET, i + '') // 设置追踪类型为get
       }
       // we run the method using the original args first (which may be reactive)
       const res = arr[key](...args)
@@ -76,6 +77,7 @@ function createArrayInstrumentations() {
   // which leads to infinite loops in some cases (#2137)
   ;(['push', 'pop', 'shift', 'unshift', 'splice'] as const).forEach(key => {
     instrumentations[key] = function (this: unknown[], ...args: unknown[]) {
+      // 手动触发trigger通知发生响应
       pauseTracking()
       const res = (toRaw(this) as any)[key].apply(this, args)
       resetTracking()

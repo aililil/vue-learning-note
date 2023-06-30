@@ -16,7 +16,7 @@ import { ComputedRefImpl } from './computed'
 // which maintains a Set of subscribers, but we simply store them as
 // raw Sets to reduce memory overhead.
 type KeyToDepMap = Map<any, Dep>
-const targetMap = new WeakMap<any, KeyToDepMap>()
+const targetMap = new WeakMap<any, KeyToDepMap>() // 全局数据 存储响应式对象及其依赖的映射关系
 
 // The number of effects currently being tracked recursively.
 let effectTrackDepth = 0
@@ -45,14 +45,14 @@ export type DebuggerEventExtraInfo = {
   oldTarget?: Map<any, any> | Set<any>
 }
 
-export let activeEffect: ReactiveEffect | undefined
+export let activeEffect: ReactiveEffect | undefined // 当前正在收集依赖的effect。track时effect会将自己挂在全局，方便响应式数据收集
 
 export const ITERATE_KEY = Symbol(__DEV__ ? 'iterate' : '')
 export const MAP_KEY_ITERATE_KEY = Symbol(__DEV__ ? 'Map key iterate' : '')
 
 export class ReactiveEffect<T = any> {
-  active = true
-  deps: Dep[] = []
+  active = true // 实例是否有效
+  deps: Dep[] = []  // 实例依赖的响应式数据数组
   parent: ReactiveEffect | undefined = undefined
 
   /**
@@ -70,13 +70,13 @@ export class ReactiveEffect<T = any> {
   private deferStop?: boolean
 
   onStop?: () => void
-  // dev only
+  // dev only 实例追踪依赖时触发的回调
   onTrack?: (event: DebuggerEvent) => void
-  // dev only
+  // dev only 实例被通知更新时触发的回调
   onTrigger?: (event: DebuggerEvent) => void
-
+  // 响应式副作用构造器
   constructor(
-    public fn: () => T,
+    public fn: () => T, // 传入的副作用函数
     public scheduler: EffectScheduler | null = null,
     scope?: EffectScope
   ) {
@@ -84,11 +84,13 @@ export class ReactiveEffect<T = any> {
   }
 
   run() {
-    if (!this.active) {
+    if (!this.active) { // 副作用依然有效
       return this.fn()
     }
+    // 存在effect嵌套时
     let parent: ReactiveEffect | undefined = activeEffect
-    let lastShouldTrack = shouldTrack
+    let lastShouldTrack = shouldTrack // 暂存全局标识 方便后面还原
+    // 检查是否存在嵌套的情况
     while (parent) {
       if (parent === this) {
         return
@@ -96,9 +98,9 @@ export class ReactiveEffect<T = any> {
       parent = parent.parent
     }
     try {
-      this.parent = activeEffect
+      this.parent = activeEffect  // 存储父实例
       activeEffect = this
-      shouldTrack = true
+      shouldTrack = true  // 允许track
 
       trackOpBit = 1 << ++effectTrackDepth
 
@@ -114,7 +116,7 @@ export class ReactiveEffect<T = any> {
       }
 
       trackOpBit = 1 << --effectTrackDepth
-
+      // 依赖收集完成 还原全局变量和临时数据
       activeEffect = this.parent
       shouldTrack = lastShouldTrack
       this.parent = undefined
@@ -125,6 +127,7 @@ export class ReactiveEffect<T = any> {
     }
   }
 
+  // 使当前实例的响应式失活，等待清除工作的统一执行
   stop() {
     // stopped while running itself - defer the cleanup
     if (activeEffect === this) {
@@ -177,6 +180,7 @@ export interface ReactiveEffectRunner<T = any> {
  * @param options - Allows to control the effect's behaviour.
  * @returns A runner that can be used to control the effect after creation.
  */
+// 响应式核心，传入一个副作用函数。用于自动收集函数的依赖，并在依赖更新时通知副作用函数执行更新。
 export function effect<T = any>(
   fn: () => T,
   options?: ReactiveEffectOptions
@@ -184,13 +188,14 @@ export function effect<T = any>(
   if ((fn as ReactiveEffectRunner).effect) {
     fn = (fn as ReactiveEffectRunner).effect.fn
   }
-
+  // 将fn处理为响应式副作用函数
   const _effect = new ReactiveEffect(fn)
   if (options) {
-    extend(_effect, options)
+    extend(_effect, options)  // 传入配置
     if (options.scope) recordEffectScope(_effect, options.scope)
   }
-  if (!options || !options.lazy) {
+  // 非lazy effect 则立即执行（即立即收集依赖）
+  if (!options || !options.lazy) {  // lazy effect
     _effect.run()
   }
   const runner = _effect.run.bind(_effect) as ReactiveEffectRunner
@@ -207,7 +212,7 @@ export function stop(runner: ReactiveEffectRunner) {
   runner.effect.stop()
 }
 
-export let shouldTrack = true
+export let shouldTrack = true   // 当前是否允许track的标识
 const trackStack: boolean[] = []
 
 /**
@@ -244,30 +249,32 @@ export function resetTracking() {
  * @param type - Defines the type of access to the reactive property.
  * @param key - Identifier of the reactive property to track.
  */
+// 收集依赖的核心方法
 export function track(target: object, type: TrackOpTypes, key: unknown) {
   if (shouldTrack && activeEffect) {
+    // 获取响应式数据（target）存放依赖的map表
     let depsMap = targetMap.get(target)
-    if (!depsMap) {
+    if (!depsMap) { // 没有则新建一个
       targetMap.set(target, (depsMap = new Map()))
     }
-    let dep = depsMap.get(key)
-    if (!dep) {
+    let dep = depsMap.get(key)  // effect依赖的是响应式数据中的具体某个值。获取该值存放依赖的set表
+    if (!dep) { // 没有则新建一个
       depsMap.set(key, (dep = createDep()))
     }
 
     const eventInfo = __DEV__
       ? { effect: activeEffect, target, type, key }
       : undefined
-
+    // 通知依赖更新
     trackEffects(dep, eventInfo)
   }
 }
-
+// 追踪行为
 export function trackEffects(
   dep: Dep,
-  debuggerEventExtraInfo?: DebuggerEventExtraInfo
+  debuggerEventExtraInfo?: DebuggerEventExtraInfo // dev环境时，track执行时会触发一个回调
 ) {
-  let shouldTrack = false
+  let shouldTrack = false // 是否允许track执行
   if (effectTrackDepth <= maxMarkerBits) {
     if (!newTracked(dep)) {
       dep.n |= trackOpBit // set newly tracked
@@ -302,6 +309,7 @@ export function trackEffects(
  * @param type - Defines the type of the operation that needs to trigger effects.
  * @param key - Can be used to target a specific reactive property in the target object.
  */
+// 通知依赖更新的核心方法
 export function trigger(
   target: object,
   type: TriggerOpTypes,
@@ -310,18 +318,18 @@ export function trigger(
   oldValue?: unknown,
   oldTarget?: Map<unknown, unknown> | Set<unknown>
 ) {
-  const depsMap = targetMap.get(target)
+  const depsMap = targetMap.get(target) // 获取依赖响应式数据（target）的effect
   if (!depsMap) {
-    // never been tracked
+    // 无需要触发的effect
     return
   }
 
-  let deps: (Dep | undefined)[] = []
-  if (type === TriggerOpTypes.CLEAR) {
+  let deps: (Dep | undefined)[] = []  // 用于存放需要通知更新的依赖
+  if (type === TriggerOpTypes.CLEAR) {  // map clear 需要全部触发更新
     // collection being cleared
     // trigger all effects for target
     deps = [...depsMap.values()]
-  } else if (key === 'length' && isArray(target)) {
+  } else if (key === 'length' && isArray(target)) { // 数组长度变化 通知订阅了长度变化的effect
     const newLength = Number(newValue)
     depsMap.forEach((dep, key) => {
       if (key === 'length' || key >= newLength) {
@@ -331,7 +339,7 @@ export function trigger(
   } else {
     // schedule runs for SET | ADD | DELETE
     if (key !== void 0) {
-      deps.push(depsMap.get(key))
+      deps.push(depsMap.get(key)) // 需要通知更新的值
     }
 
     // also run for iteration key on ADD | DELETE | Map.SET
@@ -362,11 +370,11 @@ export function trigger(
         break
     }
   }
-
+  // dev环境调试数据
   const eventInfo = __DEV__
     ? { target, type, key, newValue, oldValue, oldTarget }
     : undefined
-
+  // 通知依赖更新
   if (deps.length === 1) {
     if (deps[0]) {
       if (__DEV__) {

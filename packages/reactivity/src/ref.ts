@@ -1,3 +1,4 @@
+// ref 栈数据类型的响应式
 import {
   activeEffect,
   getDepFromReactive,
@@ -125,18 +126,18 @@ export function shallowRef(value?: unknown) {
 }
 
 function createRef(rawValue: unknown, shallow: boolean) {
-  if (isRef(rawValue)) {
+  if (isRef(rawValue)) {  // 防止重复代理
     return rawValue
   }
   return new RefImpl(rawValue, shallow)
 }
 
 class RefImpl<T> {
-  private _value: T
-  private _rawValue: T
+  private _value: T 
+  private _rawValue: T  // 原数据
 
-  public dep?: Dep = undefined
-  public readonly __v_isRef = true
+  public dep?: Dep = undefined  // 
+  public readonly __v_isRef = true  // 标记
 
   constructor(value: T, public readonly __v_isShallow: boolean) {
     this._rawValue = __v_isShallow ? value : toRaw(value)

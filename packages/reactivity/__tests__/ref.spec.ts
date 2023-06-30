@@ -24,7 +24,7 @@ describe('reactivity/ref', () => {
     a.value = 2
     expect(a.value).toBe(2)
   })
-
+  // ref 基本功能验证
   it('should be reactive', () => {
     const a = ref(1)
     let dummy
@@ -42,7 +42,7 @@ describe('reactivity/ref', () => {
     a.value = 2
     expect(calls).toBe(2)
   })
-
+  // 深度实现响应式
   it('should make nested properties reactive', () => {
     const a = ref({
       count: 1
@@ -55,7 +55,7 @@ describe('reactivity/ref', () => {
     a.value.count = 2
     expect(dummy).toBe(2)
   })
-
+  // 不设置初始值时，也正常工作
   it('should work without initial value', () => {
     const a = ref()
     let dummy
@@ -66,7 +66,7 @@ describe('reactivity/ref', () => {
     a.value = 2
     expect(dummy).toBe(2)
   })
-
+  // 嵌套在reactive中时，仍正常工作
   it('should work like a normal property when nested in a reactive object', () => {
     const a = ref(1)
     const obj = reactive({

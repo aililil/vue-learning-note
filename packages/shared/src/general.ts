@@ -56,7 +56,7 @@ export const isPromise = <T = any>(val: unknown): val is Promise<T> => {
 export const objectToString = Object.prototype.toString
 export const toTypeString = (value: unknown): string =>
   objectToString.call(value)
-
+// 可靠的获取数据类型的方法
 export const toRawType = (value: unknown): string => {
   // extract "RawType" from strings like "[object RawType]"
   return toTypeString(value).slice(8, -1)
