@@ -19,14 +19,15 @@ type KeyToDepMap = Map<any, Dep>
 const targetMap = new WeakMap<any, KeyToDepMap>() // 全局数据 存储响应式对象及其依赖的映射关系
 
 // The number of effects currently being tracked recursively.
-let effectTrackDepth = 0
-
-export let trackOpBit = 1
+let effectTrackDepth = 0  // effect递归深度标记
+// dep.n 和 dep.w使用bit表示深度，同时优化了时间、空间复杂度，v3.2
+export let trackOpBit = 1 // 当前深度的二进制表示
 
 /**
  * The bitwise track markers support at most 30 levels of recursion.
  * This value is chosen to enable modern JS engines to use a SMI on all platforms.
  * When recursion depth is greater, fall back to using a full cleanup.
+ * 正整数左移操作的最大步长为30
  */
 const maxMarkerBits = 30
 
@@ -45,14 +46,14 @@ export type DebuggerEventExtraInfo = {
   oldTarget?: Map<any, any> | Set<any>
 }
 
-export let activeEffect: ReactiveEffect | undefined // 当前正在收集依赖的effect。track时effect会将自己挂在全局，方便响应式数据收集
+export let activeEffect: ReactiveEffect | undefined // 当前正在收集依赖的effect。effect收集依赖时会将自己挂在全局，方便响应式数据收集。
 
-export const ITERATE_KEY = Symbol(__DEV__ ? 'iterate' : '')
-export const MAP_KEY_ITERATE_KEY = Symbol(__DEV__ ? 'Map key iterate' : '')
+export const ITERATE_KEY = Symbol(__DEV__ ? 'iterate' : '') // 用于array存储dep的键名
+export const MAP_KEY_ITERATE_KEY = Symbol(__DEV__ ? 'Map key iterate' : '') // 用于map存储dep的键名
 
 export class ReactiveEffect<T = any> {
   active = true // 实例是否有效
-  deps: Dep[] = []  // 实例依赖的响应式数据数组
+  deps: Dep[] = []  // effect实例依赖的响应式数据数组
   parent: ReactiveEffect | undefined = undefined
 
   /**
@@ -68,7 +69,7 @@ export class ReactiveEffect<T = any> {
    * @internal
    */
   private deferStop?: boolean
-
+  // effect失效时触发的响应式
   onStop?: () => void
   // dev only 实例追踪依赖时触发的回调
   onTrack?: (event: DebuggerEvent) => void
@@ -80,6 +81,7 @@ export class ReactiveEffect<T = any> {
     public scheduler: EffectScheduler | null = null,
     scope?: EffectScope
   ) {
+    // 存入 effect 作用域
     recordEffectScope(this, scope)
   }
 
@@ -90,7 +92,7 @@ export class ReactiveEffect<T = any> {
     // 存在effect嵌套时
     let parent: ReactiveEffect | undefined = activeEffect
     let lastShouldTrack = shouldTrack // 暂存全局标识 方便后面还原
-    // 检查是否存在嵌套的情况
+    // 防止循环调用 如：effect(() => object++)
     while (parent) {
       if (parent === this) {
         return
@@ -102,11 +104,13 @@ export class ReactiveEffect<T = any> {
       activeEffect = this
       shouldTrack = true  // 允许track
 
-      trackOpBit = 1 << ++effectTrackDepth
+      trackOpBit = 1 << ++effectTrackDepth  // 深度加一
 
       if (effectTrackDepth <= maxMarkerBits) {
+        // 3.2优化点
         initDepMarkers(this)
       } else {
+        // 降级方案：每次执行前 清除dep 执行时会方便重新收集 存在性能瓶颈
         cleanupEffect(this)
       }
       return this.fn()
@@ -114,9 +118,8 @@ export class ReactiveEffect<T = any> {
       if (effectTrackDepth <= maxMarkerBits) {
         finalizeDepMarkers(this)
       }
-
-      trackOpBit = 1 << --effectTrackDepth
       // 依赖收集完成 还原全局变量和临时数据
+      trackOpBit = 1 << --effectTrackDepth
       activeEffect = this.parent
       shouldTrack = lastShouldTrack
       this.parent = undefined
@@ -145,9 +148,11 @@ export class ReactiveEffect<T = any> {
 function cleanupEffect(effect: ReactiveEffect) {
   const { deps } = effect
   if (deps.length) {
+    // 从响应式数据上删除当前副作用
     for (let i = 0; i < deps.length; i++) {
       deps[i].delete(effect)
     }
+    // 清空deps 后续重收集
     deps.length = 0
   }
 }
@@ -158,11 +163,11 @@ export interface DebuggerOptions {
 }
 
 export interface ReactiveEffectOptions extends DebuggerOptions {
-  lazy?: boolean
-  scheduler?: EffectScheduler
+  lazy?: boolean  // 是否是lazy effect
+  scheduler?: EffectScheduler // 自定义的调度器
   scope?: EffectScope
   allowRecurse?: boolean
-  onStop?: () => void
+  onStop?: () => void // effect失效时的回调
 }
 
 export interface ReactiveEffectRunner<T = any> {
@@ -180,18 +185,20 @@ export interface ReactiveEffectRunner<T = any> {
  * @param options - Allows to control the effect's behaviour.
  * @returns A runner that can be used to control the effect after creation.
  */
-// 响应式核心，传入一个副作用函数。用于自动收集函数的依赖，并在依赖更新时通知副作用函数执行更新。
+// 生成一个effect的工厂函数
 export function effect<T = any>(
   fn: () => T,
   options?: ReactiveEffectOptions
 ): ReactiveEffectRunner {
+  // 已经是个effect实例
   if ((fn as ReactiveEffectRunner).effect) {
     fn = (fn as ReactiveEffectRunner).effect.fn
   }
   // 将fn处理为响应式副作用函数
   const _effect = new ReactiveEffect(fn)
+  // 处理配置
   if (options) {
-    extend(_effect, options)  // 传入配置
+    extend(_effect, options)
     if (options.scope) recordEffectScope(_effect, options.scope)
   }
   // 非lazy effect 则立即执行（即立即收集依赖）
@@ -205,7 +212,7 @@ export function effect<T = any>(
 
 /**
  * Stops the effect associated with the given runner.
- *
+ * 使一个 effect runner 失效
  * @param runner - Association with the effect to stop tracking.
  */
 export function stop(runner: ReactiveEffectRunner) {
@@ -249,7 +256,7 @@ export function resetTracking() {
  * @param type - Defines the type of access to the reactive property.
  * @param key - Identifier of the reactive property to track.
  */
-// 收集依赖的核心方法
+// 响应式数据收集依赖的入口
 export function track(target: object, type: TrackOpTypes, key: unknown) {
   if (shouldTrack && activeEffect) {
     // 获取响应式数据（target）存放依赖的map表
@@ -269,26 +276,27 @@ export function track(target: object, type: TrackOpTypes, key: unknown) {
     trackEffects(dep, eventInfo)
   }
 }
-// 追踪行为
+// track的核心方法
 export function trackEffects(
   dep: Dep,
   debuggerEventExtraInfo?: DebuggerEventExtraInfo // dev环境时，track执行时会触发一个回调
 ) {
-  let shouldTrack = false // 是否允许track执行
+  let shouldTrack = false // 是否应追踪标记
   if (effectTrackDepth <= maxMarkerBits) {
     if (!newTracked(dep)) {
       dep.n |= trackOpBit // set newly tracked
-      shouldTrack = !wasTracked(dep)
+      shouldTrack = !wasTracked(dep)  // 当前深度是否已追踪
     }
-  } else {
+  } else {  // 降级方案
     // Full cleanup mode.
-    shouldTrack = !dep.has(activeEffect!)
+    shouldTrack = !dep.has(activeEffect!) // 已经完成了响应式数据的追踪
   }
 
   if (shouldTrack) {
-    dep.add(activeEffect!)
-    activeEffect!.deps.push(dep)
-    if (__DEV__ && activeEffect!.onTrack) {
+    // 双向指针
+    dep.add(activeEffect!)  // 响应式数据中存储effect 
+    activeEffect!.deps.push(dep)  // effect实例中存储响应式数据
+    if (__DEV__ && activeEffect!.onTrack) { // dev环境触发tark回调
       activeEffect!.onTrack(
         extend(
           {
@@ -311,8 +319,8 @@ export function trackEffects(
  */
 // 通知依赖更新的核心方法
 export function trigger(
-  target: object,
-  type: TriggerOpTypes,
+  target: object, // 响应式数据
+  type: TriggerOpTypes, // 响应式数据的响应类型
   key?: unknown,
   newValue?: unknown,
   oldValue?: unknown,
@@ -324,12 +332,15 @@ export function trigger(
     return
   }
 
-  let deps: (Dep | undefined)[] = []  // 用于存放需要通知更新的依赖
-  if (type === TriggerOpTypes.CLEAR) {  // map clear 需要全部触发更新
+  // 筛选出需要执行的effect
+  let deps: (Dep | undefined)[] = []  // 用于存放最终需要执行的effect
+  if (type === TriggerOpTypes.CLEAR) {
+    // map clear 需要全部触发更新
     // collection being cleared
     // trigger all effects for target
     deps = [...depsMap.values()]
-  } else if (key === 'length' && isArray(target)) { // 数组长度变化 通知订阅了长度变化的effect
+  } else if (key === 'length' && isArray(target)) {
+    // 数组长度变化 通知订阅了长度变化的effect
     const newLength = Number(newValue)
     depsMap.forEach((dep, key) => {
       if (key === 'length' || key >= newLength) {
@@ -337,9 +348,10 @@ export function trigger(
       }
     })
   } else {
+    // 响应式数据发生set add delet 操作
     // schedule runs for SET | ADD | DELETE
     if (key !== void 0) {
-      deps.push(depsMap.get(key)) // 需要通知更新的值
+      deps.push(depsMap.get(key)) // 通知监听key值变化的effect
     }
 
     // also run for iteration key on ADD | DELETE | Map.SET
@@ -370,12 +382,12 @@ export function trigger(
         break
     }
   }
-  // dev环境调试数据
+  // info for onTrigger hook
   const eventInfo = __DEV__
     ? { target, type, key, newValue, oldValue, oldTarget }
     : undefined
   // 通知依赖更新
-  if (deps.length === 1) {
+  if (deps.length === 1) {  // 优化时间复杂度
     if (deps[0]) {
       if (__DEV__) {
         triggerEffects(deps[0], eventInfo)
@@ -402,8 +414,9 @@ export function triggerEffects(
   dep: Dep | ReactiveEffect[],
   debuggerEventExtraInfo?: DebuggerEventExtraInfo
 ) {
-  // spread into array for stabilization
+  // spread into array for stabilization  类数组转为数组
   const effects = isArray(dep) ? dep : [...dep]
+  // 优先触发computed类型的effect。因为其他effect会将computed视为ref类型读取value，因此执行顺序会影响结果。
   for (const effect of effects) {
     if (effect.computed) {
       triggerEffect(effect, debuggerEventExtraInfo)
@@ -424,6 +437,7 @@ function triggerEffect(
     if (__DEV__ && effect.onTrigger) {
       effect.onTrigger(extend({ effect }, debuggerEventExtraInfo))
     }
+    // effect是否存在自定义的调度器
     if (effect.scheduler) {
       effect.scheduler()
     } else {

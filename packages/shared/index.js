@@ -1,3 +1,4 @@
+// 共享的包，存放工具函数
 'use strict'
 
 if (process.env.NODE_ENV === 'production') {

@@ -1,3 +1,4 @@
+// 响应式代理porxy中handler的实现
 import {
   reactive,
   readonly,
@@ -32,8 +33,10 @@ import {
 import { isRef } from './ref'
 import { warn } from './warning'
 
+// 无需触发track的属性
 const isNonTrackableKeys = /*#__PURE__*/ makeMap(`__proto__,__v_isRef,__isVue`)
 
+// 运行时Symbol上的属性，如Symbol.iterator
 const builtInSymbols = new Set(
   /*#__PURE__*/
   Object.getOwnPropertyNames(Symbol)
@@ -93,9 +96,13 @@ function hasOwnProperty(this: object, key: string) {
   return obj.hasOwnProperty(key)
 }
 
+/**
+ * @desc 用于生成porxy get handler的高阶函数
+ */
 function createGetter(isReadonly = false, shallow = false) {
   return function get(target: Target, key: string | symbol, receiver: object) {
-    if (key === ReactiveFlags.IS_REACTIVE) {
+    // 访问代理，用于标记的属性时
+    if (key === ReactiveFlags.IS_REACTIVE) { 
       return !isReadonly
     } else if (key === ReactiveFlags.IS_READONLY) {
       return isReadonly
@@ -126,27 +133,31 @@ function createGetter(isReadonly = false, shallow = false) {
         return hasOwnProperty
       }
     }
-
+    // 从被代理的数据上的原数据
     const res = Reflect.get(target, key, receiver)
 
     if (isSymbol(key) ? builtInSymbols.has(key) : isNonTrackableKeys(key)) {
       return res
     }
 
+    // track effect
     if (!isReadonly) {
       track(target, TrackOpTypes.GET, key)
     }
 
+    // 浅响应式代理直接返回，非浅响应式代理，实现深度代理。
     if (shallow) {
       return res
     }
 
     if (isRef(res)) {
+      // res是ref类型时，帮助用户解构ref的包裹，以获取真正的值
       // ref unwrapping - skip unwrap for Array + integer key.
       return targetIsArray && isIntegerKey(key) ? res : res.value
     }
 
     if (isObject(res)) {
+      // 优于vue2的点，在get时才去实现深度代理，而不是创建响应式代理时就深度代理。
       // Convert returned value into a proxy as well. we do the isObject check
       // here to avoid invalid value warning. Also need to lazy access readonly
       // and reactive here to avoid circular dependency.
@@ -159,12 +170,14 @@ function createGetter(isReadonly = false, shallow = false) {
 
 const set = /*#__PURE__*/ createSetter()
 const shallowSet = /*#__PURE__*/ createSetter(true)
-
+/**
+ * @desc 用于生成porxy set handler的高阶函数
+ */
 function createSetter(shallow = false) {
   return function set(
     target: object,
     key: string | symbol,
-    value: unknown,
+    value: unknown, // new value
     receiver: object
   ): boolean {
     let oldValue = (target as any)[key]
@@ -183,11 +196,12 @@ function createSetter(shallow = false) {
     } else {
       // in shallow mode, objects are set as-is regardless of reactive or not
     }
-
+    // 判断是 set 还是 add
     const hadKey =
       isArray(target) && isIntegerKey(key)
         ? Number(key) < target.length
         : hasOwn(target, key)
+    // 改变被代理对象的属性
     const result = Reflect.set(target, key, value, receiver)
     // don't trigger if target is something up in the prototype chain of original
     if (target === toRaw(receiver)) {

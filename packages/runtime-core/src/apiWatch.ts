@@ -1,3 +1,4 @@
+// watch effect的实现
 import {
   isRef,
   isShallow,
@@ -69,7 +70,7 @@ type MapSources<T, Immediate> = {
 type OnCleanup = (cleanupFn: () => void) => void
 
 export interface WatchOptionsBase extends DebuggerOptions {
-  flush?: 'pre' | 'post' | 'sync'
+  flush?: 'pre' | 'post' | 'sync' // 执行时机
 }
 
 export interface WatchOptions<Immediate = boolean> extends WatchOptionsBase {
@@ -169,6 +170,7 @@ export function watch<T = any, Immediate extends Readonly<boolean> = false>(
   return doWatch(source as any, cb, options)
 }
 
+// watch api 工厂函数
 function doWatch(
   source: WatchSource | WatchSource[] | WatchEffect | object,
   cb: WatchCallback | null,
@@ -197,7 +199,7 @@ function doWatch(
         `a reactive object, or an array of these types.`
     )
   }
-
+  // 获取组件实例
   const instance =
     getCurrentScope() === currentInstance?.scope ? currentInstance : null
   // const instance = currentInstance
@@ -205,6 +207,7 @@ function doWatch(
   let forceTrigger = false
   let isMultiSource = false
 
+  // 将需要监视的数据源，统一处理为function
   if (isRef(source)) {
     getter = () => source.value
     forceTrigger = isShallow(source)
@@ -437,11 +440,16 @@ export function createPathGetter(ctx: any, path: string) {
   }
 }
 
+/**
+ * @desc 深度遍历value的所有属性
+ */
 export function traverse(value: unknown, seen?: Set<unknown>) {
+  // 非响应式数据
   if (!isObject(value) || (value as any)[ReactiveFlags.SKIP]) {
     return value
   }
   seen = seen || new Set()
+  // value已被监视
   if (seen.has(value)) {
     return value
   }

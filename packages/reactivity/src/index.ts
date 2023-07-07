@@ -1,4 +1,4 @@
-// 主文件，统一向外暴露api
+// 项目入口，统一向外暴露api
 export {
   ref,
   shallowRef,

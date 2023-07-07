@@ -1,3 +1,4 @@
+// 调度机制相关，如何调度effect的执行
 import { ErrorCodes, callWithErrorHandling } from './errorHandling'
 import { isArray, NOOP } from '@vue/shared'
 import { ComponentInternalInstance, getComponentName } from './component'

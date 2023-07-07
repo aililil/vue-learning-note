@@ -182,7 +182,7 @@ describe('reactivity/computed', () => {
     // access plusOne, causing it to be non-dirty
     plusOne.value
     // mutate n
-    n.value++
+    n.value++ // 触发 computed(computed本身也是effect) 和 上文的effect
     // on the 2nd run, plusOne.value should have already updated.
     expect(plusOneValues).toMatchObject([1, 2, 2])
   })

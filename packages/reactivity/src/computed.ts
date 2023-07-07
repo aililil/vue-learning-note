@@ -1,3 +1,4 @@
+// computed 计算属性的是实现
 import { DebuggerOptions, ReactiveEffect } from './effect'
 import { Ref, trackRefValue, triggerRefValue } from './ref'
 import { isFunction, NOOP } from '@vue/shared'
@@ -41,21 +42,23 @@ export class ComputedRefImpl<T> {
     isReadonly: boolean,
     isSSR: boolean
   ) {
+    // 调度器effect
     this.effect = new ReactiveEffect(getter, () => {
       if (!this._dirty) {
-        this._dirty = true
-        triggerRefValue(this)
+        this._dirty = true  // 只需设置标记，等待get的触发，才去计算value
+        triggerRefValue(this) // 手动触发trigger。computedRef无法使用proxy实现track trigger
       }
     })
-    this.effect.computed = this
-    this.effect.active = this._cacheable = !isSSR
-    this[ReactiveFlags.IS_READONLY] = isReadonly
+    this.effect.computed = this // 将effect标记为 computed effect
+    this.effect.active = this._cacheable = !isSSR // 当前是否是服务端渲染
+    this[ReactiveFlags.IS_READONLY] = isReadonly  // 是否是readonly computed
   }
 
   get value() {
     // the computed ref may get wrapped by other proxies e.g. readonly() #3376
     const self = toRaw(this)
-    trackRefValue(self)
+    trackRefValue(self) // 手动触发tarckref。computedRef无法使用proxy实现track trigger
+    // 当前值dirty时才去重新计算，否则返回缓存值
     if (self._dirty || !self._cacheable) {
       self._dirty = false
       self._value = self.effect.run()!

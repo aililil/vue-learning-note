@@ -1,4 +1,4 @@
-// 堆数据类型的响应式实现
+// reactive相关api的实现 栈数据类型响应式的实现
 import { isObject, toRawType, def } from '@vue/shared'
 import {
   mutableHandlers,
@@ -16,11 +16,11 @@ import type { UnwrapRefSimple, Ref, RawSymbol } from './ref'
 
 // 响应式相关标记
 export const enum ReactiveFlags {
-  SKIP = '__v_skip',  // 用于跳过响应式代理
+  SKIP = '__v_skip',  // 跳过响应式代理的标记
   IS_REACTIVE = '__v_isReactive', // 表示当前对象已被响应式代理
   IS_READONLY = '__v_isReadonly', // 表示当前对象是只读的响应式代理
   IS_SHALLOW = '__v_isShallow', // 表示当前对象是浅响应式代理
-  RAW = '__v_raw' // 当前对象被markRaw标记为不可响应式代理的对象
+  RAW = '__v_raw' // 当前对象被markRaw api标记为不可响应式代理的对象
 }
 
 export interface Target {
@@ -43,6 +43,9 @@ const enum TargetType {
   COLLECTION = 2
 }
 
+/**
+ * @desc 获取堆数据的类型，用于帮助后续响应式的实现
+ */
 function targetTypeMap(rawType: string) {
   switch (rawType) {
     case 'Object':
@@ -248,13 +251,13 @@ export function shallowReadonly<T extends object>(target: T): Readonly<T> {
   )
 }
 
-// 生成响应式对象的工厂函数
+// 生成响应式代理的工厂函数
 function createReactiveObject(
-  target: Target,
-  isReadonly: boolean,
-  baseHandlers: ProxyHandler<any>,
-  collectionHandlers: ProxyHandler<any>,
-  proxyMap: WeakMap<Target, any>
+  target: Target, // 需要代理的数据
+  isReadonly: boolean,  // 是否进行只读代理
+  baseHandlers: ProxyHandler<any>,  // proxy handlers for COMMON
+  collectionHandlers: ProxyHandler<any>,  // porxy handlers COLLECTION
+  proxyMap: WeakMap<Target, any>  // 存储响应式代理和被代理对象的映射表
 ) {
   // 栈类型数据无法代理
   if (!isObject(target)) {

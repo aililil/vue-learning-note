@@ -1,3 +1,4 @@
+// 异步计算属性的实现
 import { Dep } from './dep'
 import { ReactiveEffect } from './effect'
 import { ComputedGetter, ComputedRef } from './computed'

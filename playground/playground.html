@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <script src="./vue.js"></script>
+</head>
+<body>
+  <div id="app">
+    <div>{{obj.arr}}</div>
+  </div>
+  <script>
+    const { createApp, reactive, ref, watch, computed,effect,watchEffect } = Vue
+    let data = ref(1)
+    
+    const comp = computed(()=> data.value + 1)
+
+    watchEffect((cleanup)=>{
+      cleanup(()=>console.log('clean up'))
+      console.log(data.value)
+    })
+    data.value++
+    data.value++
+
+    const app = createApp({
+      setup(){
+        const obj = reactive({arr:ref([1,2,3])}) 
+
+        // const comp = computed(()=>{console.log(1);return obj.arr[0]})
+        // comp.value
+
+        return {
+          obj
+        }
+      }
+    })
+
+    app.mount('#app')
+  </script>
+</body>
+</html>

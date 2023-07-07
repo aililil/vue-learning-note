@@ -1,4 +1,4 @@
-// ref 栈数据类型的响应式
+// ref相关api的实现 栈数据类型响应式的实现
 import {
   activeEffect,
   getDepFromReactive,
@@ -39,7 +39,7 @@ type RefBase<T> = {
 }
 
 export function trackRefValue(ref: RefBase<any>) {
-  if (shouldTrack && activeEffect) {
+  if (shouldTrack && activeEffect) {  // 能执行track
     ref = toRaw(ref)
     if (__DEV__) {
       trackEffects(ref.dep || (ref.dep = createDep()), {

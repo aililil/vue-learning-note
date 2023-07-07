@@ -6,6 +6,7 @@ export type Dep = Set<ReactiveEffect> & TrackedMarkers
  * wasTracked and newTracked maintain the status for several levels of effect
  * tracking recursion. One bit per level is used to define whether the dependency
  * was/is tracked.
+ * 描述effect是否被追踪
  */
 type TrackedMarkers = {
   /**
@@ -25,14 +26,14 @@ export const createDep = (effects?: ReactiveEffect[]): Dep => {
   return dep
 }
 
-export const wasTracked = (dep: Dep): boolean => (dep.w & trackOpBit) > 0
+export const wasTracked = (dep: Dep): boolean => (dep.w & trackOpBit) > 0 // 当前深度上被追踪
 
 export const newTracked = (dep: Dep): boolean => (dep.n & trackOpBit) > 0
 
 export const initDepMarkers = ({ deps }: ReactiveEffect) => {
   if (deps.length) {
     for (let i = 0; i < deps.length; i++) {
-      deps[i].w |= trackOpBit // set was tracked
+      deps[i].w |= trackOpBit // set was tracked  dep was tracked 记录下当前深度
     }
   }
 }

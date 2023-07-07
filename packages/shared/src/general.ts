@@ -61,10 +61,14 @@ export const toRawType = (value: unknown): string => {
   // extract "RawType" from strings like "[object RawType]"
   return toTypeString(value).slice(8, -1)
 }
-
+/**
+ * @desc 检查值是否严格是Object类型
+ */
 export const isPlainObject = (val: unknown): val is object =>
   toTypeString(val) === '[object Object]'
-
+/**
+ * @descc key是否 是string && 是字面量的正整数
+ */
 export const isIntegerKey = (key: unknown) =>
   isString(key) &&
   key !== 'NaN' &&
